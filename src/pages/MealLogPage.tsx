@@ -14,6 +14,7 @@ interface MealInfo {
   rating: number
   notes: string
   privacy: 'public' | 'friends' | 'private'
+  meal_date: string
 }
 
 const DEFAULT_INFO: MealInfo = {
@@ -22,6 +23,7 @@ const DEFAULT_INFO: MealInfo = {
   rating: 7,
   notes: '',
   privacy: 'friends',
+  meal_date: new Date().toISOString().slice(0, 10),
 }
 
 const DEFAULT_FLAVOR: FlavorNotes = {
@@ -82,6 +84,7 @@ export default function MealLogPage() {
       notes: info.notes.trim() || null,
       flavor_notes: flavor,
       privacy: info.privacy,
+      meal_date: info.meal_date,
     })
 
     if (mealError) {
@@ -324,6 +327,20 @@ export default function MealLogPage() {
             <span>😐 OK</span>
             <span>🤤 Amazing</span>
           </div>
+        </div>
+
+        {/* Date */}
+        <div className="space-y-1">
+          <label className="text-sm font-medium">
+            Date <span className="text-muted-foreground font-normal">(defaults to today)</span>
+          </label>
+          <input
+            type="date"
+            value={info.meal_date}
+            max={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => setInfo((prev) => ({ ...prev, meal_date: e.target.value }))}
+            className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
         </div>
 
         {/* Notes */}

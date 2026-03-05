@@ -5,10 +5,13 @@ import Layout from '@/components/Layout'
 import LoginPage from '@/pages/LoginPage'
 import SignupPage from '@/pages/SignupPage'
 import OnboardingPage from '@/pages/OnboardingPage'
-import DashboardPage from '@/pages/DashboardPage'
+import DiscoverPage from '@/pages/DiscoverPage'
 import MenuScanPage from '@/pages/MenuScanPage'
+import RestaurantDetailPage from '@/pages/RestaurantDetailPage'
 import MealLogPage from '@/pages/MealLogPage'
 import MealHistoryPage from '@/pages/MealHistoryPage'
+import RestaurantsPage from '@/pages/RestaurantsPage'
+import FriendsPage from '@/pages/FriendsPage'
 import ProfilePage from '@/pages/ProfilePage'
 
 export default function App() {
@@ -32,10 +35,13 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route element={<Layout />}>
-          <Route path="/" element={<DashboardPage />} />
+          <Route path="/" element={<DiscoverPage />} />
           <Route path="/scan" element={<MenuScanPage />} />
+          <Route path="/restaurants/:slug" element={<RestaurantDetailPage />} />
+          <Route path="/restaurants" element={<RestaurantsPage />} />
           <Route path="/log" element={<MealLogPage />} />
           <Route path="/history" element={<MealHistoryPage />} />
+          <Route path="/friends" element={<FriendsPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>

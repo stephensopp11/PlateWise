@@ -83,6 +83,7 @@ export interface Meal {
   photo_url: string | null
   flavor_notes: FlavorNotes | null
   privacy: 'public' | 'friends' | 'private'
+  meal_date: string | null // YYYY-MM-DD, null for rows before migration
   created_at: string
 }
 

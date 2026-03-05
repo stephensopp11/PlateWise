@@ -1,12 +1,11 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { UtensilsCrossed, Search, BookOpen, Clock, User } from 'lucide-react'
+import { Search, BookOpen, Users, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { to: '/', label: 'Home', icon: UtensilsCrossed },
-  { to: '/scan', label: 'Scan Menu', icon: Search },
+  { to: '/', label: 'Discover', icon: Search },
   { to: '/log', label: 'Log Meal', icon: BookOpen },
-  { to: '/history', label: 'History', icon: Clock },
+  { to: '/friends', label: 'Friends', icon: Users },
   { to: '/profile', label: 'Profile', icon: User },
 ]
 

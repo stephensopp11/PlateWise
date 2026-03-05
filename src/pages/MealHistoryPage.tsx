@@ -111,9 +111,9 @@ export default function MealHistoryPage() {
             })()}
 
             <p className="text-xs text-muted-foreground">
-              {new Date(meal.created_at).toLocaleDateString('en-US', {
-                month: 'short', day: 'numeric', year: 'numeric',
-              })}
+              {meal.meal_date
+                ? new Date(`${meal.meal_date}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : new Date(meal.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
             </p>
           </div>
         ))}
