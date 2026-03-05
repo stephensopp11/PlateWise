@@ -28,7 +28,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-primary">PlateWise</h1>
-          <p className="text-muted-foreground mt-1">Sign in to your account</p>
+          <p className="text-muted-foreground mt-1 italic">"Be willing to try new things"</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

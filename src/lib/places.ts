@@ -19,6 +19,8 @@ export interface PlaceResult {
   neighborhood: string
   phoneNumber: string | null
   websiteUri: string | null
+  lat: number | null
+  lng: number | null
 }
 
 // ── Filter types ──────────────────────────────────────────────────────────────
@@ -36,23 +38,25 @@ export interface PlacesQuery {
   vibes?: VibeFilter[]
   cuisines?: CuisineFilter[]
   prices?: PriceFilter[]
+  userLat?: number | null
+  userLng?: number | null
 }
 
 // ── Mock data ─────────────────────────────────────────────────────────────────
 
 const MOCK_RESTAURANTS: PlaceResult[] = [
-  { id: 'mock-1', name: 'Ippudo Westside',       cuisine: 'Japanese',      priceLevel: 2, address: '321 W 51st St',        neighborhood: 'Midtown West', phoneNumber: null, websiteUri: null },
-  { id: 'mock-2', name: "Nobu Downtown",          cuisine: 'Japanese',      priceLevel: 4, address: '195 Broadway',          neighborhood: 'FiDi',         phoneNumber: null, websiteUri: null },
-  { id: 'mock-3', name: 'Maialino',               cuisine: 'Italian',       priceLevel: 3, address: '2 Lexington Ave',       neighborhood: 'Gramercy',     phoneNumber: null, websiteUri: null },
-  { id: 'mock-4', name: 'Spice Market',           cuisine: 'Thai',          priceLevel: 2, address: '403 W 13th St',         neighborhood: 'Meatpacking',  phoneNumber: null, websiteUri: null },
-  { id: 'mock-5', name: 'Tacombi Nolita',         cuisine: 'Mexican',       priceLevel: 1, address: '267 Elizabeth St',      neighborhood: 'Nolita',       phoneNumber: null, websiteUri: null },
-  { id: 'mock-6', name: 'The Spotted Pig',        cuisine: 'American',      priceLevel: 2, address: '314 W 11th St',         neighborhood: 'West Village', phoneNumber: null, websiteUri: null },
-  { id: 'mock-7', name: 'Le Bernardin',           cuisine: 'French',        priceLevel: 4, address: '155 W 51st St',         neighborhood: 'Midtown',      phoneNumber: null, websiteUri: null },
-  { id: 'mock-8', name: 'Indian Accent',          cuisine: 'Indian',        priceLevel: 3, address: '123 W 56th St',         neighborhood: 'Midtown',      phoneNumber: null, websiteUri: null },
-  { id: 'mock-9', name: 'Lilia',                  cuisine: 'Italian',       priceLevel: 3, address: '567 Union Ave',         neighborhood: 'Williamsburg', phoneNumber: null, websiteUri: null },
-  { id: 'mock-10', name: 'Han Dynasty',           cuisine: 'Chinese',       priceLevel: 1, address: '90 3rd Ave',            neighborhood: 'East Village', phoneNumber: null, websiteUri: null },
-  { id: 'mock-11', name: 'Atomix',                cuisine: 'Korean',        priceLevel: 4, address: '104 E 30th St',         neighborhood: 'NoMad',        phoneNumber: null, websiteUri: null },
-  { id: 'mock-12', name: 'Barbounia',             cuisine: 'Mediterranean', priceLevel: 2, address: '250 Park Ave S',        neighborhood: 'Flatiron',     phoneNumber: null, websiteUri: null },
+  { id: 'mock-1',  name: 'Ippudo Westside',  cuisine: 'Japanese',      priceLevel: 2, address: '321 W 51st St',    neighborhood: 'Midtown West', phoneNumber: null, websiteUri: null, lat: 40.7622, lng: -73.9900 },
+  { id: 'mock-2',  name: 'Nobu Downtown',    cuisine: 'Japanese',      priceLevel: 4, address: '195 Broadway',     neighborhood: 'FiDi',         phoneNumber: null, websiteUri: null, lat: 40.7103, lng: -74.0104 },
+  { id: 'mock-3',  name: 'Maialino',         cuisine: 'Italian',       priceLevel: 3, address: '2 Lexington Ave',  neighborhood: 'Gramercy',     phoneNumber: null, websiteUri: null, lat: 40.7394, lng: -73.9827 },
+  { id: 'mock-4',  name: 'Spice Market',     cuisine: 'Thai',          priceLevel: 2, address: '403 W 13th St',   neighborhood: 'Meatpacking',  phoneNumber: null, websiteUri: null, lat: 40.7404, lng: -74.0063 },
+  { id: 'mock-5',  name: 'Tacombi Nolita',   cuisine: 'Mexican',       priceLevel: 1, address: '267 Elizabeth St', neighborhood: 'Nolita',       phoneNumber: null, websiteUri: null, lat: 40.7237, lng: -73.9959 },
+  { id: 'mock-6',  name: 'The Spotted Pig',  cuisine: 'American',      priceLevel: 2, address: '314 W 11th St',   neighborhood: 'West Village', phoneNumber: null, websiteUri: null, lat: 40.7347, lng: -74.0077 },
+  { id: 'mock-7',  name: 'Le Bernardin',     cuisine: 'French',        priceLevel: 4, address: '155 W 51st St',   neighborhood: 'Midtown',      phoneNumber: null, websiteUri: null, lat: 40.7622, lng: -73.9837 },
+  { id: 'mock-8',  name: 'Indian Accent',    cuisine: 'Indian',        priceLevel: 3, address: '123 W 56th St',   neighborhood: 'Midtown',      phoneNumber: null, websiteUri: null, lat: 40.7636, lng: -73.9766 },
+  { id: 'mock-9',  name: 'Lilia',            cuisine: 'Italian',       priceLevel: 3, address: '567 Union Ave',   neighborhood: 'Williamsburg', phoneNumber: null, websiteUri: null, lat: 40.7128, lng: -73.9468 },
+  { id: 'mock-10', name: 'Han Dynasty',      cuisine: 'Chinese',       priceLevel: 1, address: '90 3rd Ave',      neighborhood: 'East Village', phoneNumber: null, websiteUri: null, lat: 40.7317, lng: -73.9887 },
+  { id: 'mock-11', name: 'Atomix',           cuisine: 'Korean',        priceLevel: 4, address: '104 E 30th St',   neighborhood: 'NoMad',        phoneNumber: null, websiteUri: null, lat: 40.7443, lng: -73.9840 },
+  { id: 'mock-12', name: 'Barbounia',        cuisine: 'Mediterranean', priceLevel: 2, address: '250 Park Ave S',  neighborhood: 'Flatiron',     phoneNumber: null, websiteUri: null, lat: 40.7389, lng: -73.9866 },
 ]
 
 const VIBE_PRICE_MAP: Record<VibeFilter, PriceLevel[]> = {
@@ -96,10 +100,19 @@ function mockSearch(q: PlacesQuery): PlaceResult[] {
 async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
   const textQuery = [q.query, q.location].filter(Boolean).join(' near ')
 
-  const body = {
+  const body: Record<string, unknown> = {
     textQuery: textQuery || 'restaurants',
     includedType: 'restaurant',
     maxResultCount: 20,
+  }
+
+  if (q.userLat != null && q.userLng != null) {
+    body.locationBias = {
+      circle: {
+        center: { latitude: q.userLat, longitude: q.userLng },
+        radius: 8000, // 8 km radius
+      },
+    }
   }
 
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
@@ -107,7 +120,7 @@ async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
     headers: {
       'Content-Type': 'application/json',
       'X-Goog-Api-Key': PLACES_KEY,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.priceLevel,places.primaryTypeDisplayName,places.nationalPhoneNumber,places.websiteUri,places.addressComponents',
+      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.priceLevel,places.primaryTypeDisplayName,places.nationalPhoneNumber,places.websiteUri,places.addressComponents,places.location',
     },
     body: JSON.stringify(body),
   })
@@ -132,6 +145,8 @@ async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
     const components = p.addressComponents as Array<{ longText: string; types: string[] }> | undefined
     const neighborhood = components?.find((c) => c.types.includes('neighborhood'))?.longText ?? ''
 
+    const location = p.location as { latitude: number; longitude: number } | undefined
+
     return {
       id: p.id as string,
       name: display?.text ?? 'Unknown',
@@ -141,6 +156,8 @@ async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
       neighborhood,
       phoneNumber: p.nationalPhoneNumber as string | null ?? null,
       websiteUri: p.websiteUri as string | null ?? null,
+      lat: location?.latitude ?? null,
+      lng: location?.longitude ?? null,
     }
   })
 }
