@@ -1,11 +1,12 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { searchPlaces, priceLabel, openTableUrl } from '@/lib/places'
-import type { PlaceResult, VibeFilter, CuisineFilter, PriceFilter } from '@/lib/places'
+import type { PlaceResult, VibeFilter, CuisineFilter, PriceFilter, DietaryFilter, ExperienceFilter } from '@/lib/places'
 import RestaurantMap from '@/components/RestaurantMap'
 import { useGeolocation } from '@/hooks/useGeolocation'
+import { qualityAdjustedScore } from '@/lib/scoring'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_PLACES === 'true'
 
@@ -25,6 +26,13 @@ const PRICES: { label: string; value: PriceFilter }[] = [
   { label: '$', value: 1 },
   { label: '$$', value: 2 },
   { label: '$$$', value: 3 },
+]
+const DIETARY: DietaryFilter[] = ['Vegetarian', 'Vegan', 'Gluten-Free']
+const EXPERIENCES: ExperienceFilter[] = ['Outdoor Seating', 'Reservable', 'Good for Groups', 'Live Music']
+
+const SUGGESTIONS = [
+  'Sushi', 'Tacos', 'Pizza', 'Burgers', 'Brunch',
+  'Ramen', 'Steakhouse', 'Indian', 'Thai', 'Italian',
 ]
 
 function FilterChip({
@@ -48,6 +56,15 @@ function FilterChip({
     >
       {label}
     </button>
+  )
+}
+
+function FilterSection({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">{label}</p>
+      <div className="flex gap-2 flex-wrap">{children}</div>
+    </div>
   )
 }
 
@@ -82,6 +99,9 @@ function RestaurantCard({
             {place.cuisine}
             {place.priceLevel ? ` · ${priceLabel(place.priceLevel)}` : ''}
             {place.neighborhood ? ` · ${place.neighborhood}` : ''}
+            {place.rating != null
+              ? ` · ⭐ ${place.rating.toFixed(1)}${place.reviewCount != null ? ` (${place.reviewCount >= 1000 ? `${Math.floor(place.reviewCount / 1000)}k+` : place.reviewCount})` : ''}`
+              : ''}
           </p>
           {place.address && (
             <p className="text-xs text-muted-foreground truncate">{place.address}</p>
@@ -134,11 +154,20 @@ export default function DiscoverPage() {
   const [activeVibes, setActiveVibes] = useState<Set<VibeFilter>>(new Set())
   const [activeCuisines, setActiveCuisines] = useState<Set<CuisineFilter>>(new Set())
   const [activePrices, setActivePrices] = useState<Set<PriceFilter>>(new Set())
+  const [activeDietary, setActiveDietary] = useState<Set<DietaryFilter>>(new Set())
+  const [activeExperiences, setActiveExperiences] = useState<Set<ExperienceFilter>>(new Set())
+  const [minRating, setMinRating] = useState(0)
 
   const [searchResults, setSearchResults] = useState<PlaceResult[] | null>(null)
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState('')
   const [viewMode, setViewMode] = useState<'list' | 'map'>('list')
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [radiusMiles, setRadiusMiles] = useState(10)
+
+  // Search suggestions
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const suggestionTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const geo = useGeolocation()
 
@@ -186,6 +215,7 @@ export default function DiscoverPage() {
 
   async function handleSearch(e?: { preventDefault(): void }) {
     e?.preventDefault()
+    setShowSuggestions(false)
     setSearching(true)
     setSearchError('')
     try {
@@ -195,8 +225,11 @@ export default function DiscoverPage() {
         vibes: [...activeVibes],
         cuisines: [...activeCuisines],
         prices: [...activePrices],
+        dietary: [...activeDietary],
+        experiences: [...activeExperiences],
         userLat: geo.lat,
         userLng: geo.lng,
+        radiusMiles: geo.status === 'granted' ? radiusMiles : undefined,
       })
       setSearchResults(results)
     } catch {
@@ -208,13 +241,58 @@ export default function DiscoverPage() {
   // Auto-search when filters change (if a search has already been run)
   useEffect(() => {
     if (searchResults !== null) handleSearch()
-  }, [activeVibes, activeCuisines, activePrices])
+  }, [activeVibes, activeCuisines, activePrices, activeDietary, activeExperiences, radiusMiles])
 
   function navigateToDetail(place: PlaceResult) {
     navigate(`/restaurants/${encodeURIComponent(place.name)}`, { state: { place } })
   }
 
-  const scannedList = [...scannedMap.values()].sort((a, b) => b.avgMenuScore - a.avgMenuScore)
+  function selectSuggestion(s: string) {
+    setQuery(s)
+    setShowSuggestions(false)
+    // Submit after state update
+    setTimeout(() => {
+      setSearching(true)
+      setSearchError('')
+      searchPlaces({
+        query: s,
+        location,
+        vibes: [...activeVibes],
+        cuisines: [...activeCuisines],
+        prices: [...activePrices],
+        dietary: [...activeDietary],
+        experiences: [...activeExperiences],
+        userLat: geo.lat,
+        userLng: geo.lng,
+        radiusMiles: geo.status === 'granted' ? radiusMiles : undefined,
+      }).then((results) => {
+        setSearchResults(results)
+        setSearching(false)
+      }).catch(() => {
+        setSearchError('Search failed. Please try again.')
+        setSearching(false)
+      })
+    }, 0)
+  }
+
+  const scannedList = [...scannedMap.values()].sort(
+    (a, b) => qualityAdjustedScore(b.avgMenuScore, null) - qualityAdjustedScore(a.avgMenuScore, null)
+  )
+
+  // Client-side rating filter applied at render time
+  function applyFilters(results: PlaceResult[]): PlaceResult[] {
+    if (minRating === 0) return results
+    return results.filter((r) => r.rating === null || r.rating >= minRating)
+  }
+
+  // Active filter count for badge
+  const activeFilterCount =
+    activeVibes.size +
+    activeCuisines.size +
+    activePrices.size +
+    activeDietary.size +
+    activeExperiences.size +
+    (minRating > 0 ? 1 : 0)
 
   return (
     <div className="space-y-6 max-w-lg mx-auto">
@@ -225,158 +303,259 @@ export default function DiscoverPage() {
 
       {USE_MOCK && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-          Mock mode — showing sample restaurants, not your real location.
+          Mock mode — showing sample NYC restaurants, not your real location.
         </div>
       )}
 
       {/* Search form */}
       <form onSubmit={handleSearch} className="space-y-3">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Cuisine, dish, or restaurant name…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="flex-1 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          <button
-            type="submit"
-            disabled={searching}
-            className="bg-primary text-primary-foreground rounded-xl px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
-          >
-            {searching ? '…' : 'Search'}
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Location (city or neighborhood)"
-            value={geo.status === 'granted' ? '' : location}
-            disabled={geo.status === 'granted'}
-            onChange={(e) => setLocation(e.target.value)}
-            className="flex-1 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:bg-muted"
-          />
-          {geo.status === 'granted' ? (
+
+        {/* Search bar with suggestions */}
+        <div className="relative">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              placeholder="Cuisine, dish, or restaurant name…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onFocus={() => { if (!query) setShowSuggestions(true) }}
+              onBlur={() => {
+                suggestionTimeout.current = setTimeout(() => setShowSuggestions(false), 150)
+              }}
+              className="flex-1 border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
             <button
-              type="button"
-              onClick={geo.clear}
-              className="shrink-0 flex items-center gap-1.5 border rounded-xl px-3 py-2 text-sm font-medium text-primary border-primary/40 bg-primary/5 hover:bg-primary/10 transition"
+              type="submit"
+              disabled={searching}
+              className="bg-primary text-primary-foreground rounded-xl px-4 py-2 text-sm font-medium hover:opacity-90 disabled:opacity-50 transition"
             >
-              <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
-              My location
-              <span className="text-muted-foreground">✕</span>
+              {searching ? '…' : 'Search'}
             </button>
-          ) : (
+          </div>
+
+          {showSuggestions && (
+            <div className="absolute z-10 top-full left-0 right-16 mt-1 bg-white border rounded-xl shadow-lg overflow-hidden">
+              <p className="text-xs text-muted-foreground px-3 pt-2 pb-1 font-medium">Try searching for</p>
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onMouseDown={() => {
+                    if (suggestionTimeout.current) clearTimeout(suggestionTimeout.current)
+                    selectSuggestion(s)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Location — "Near me" is the primary path */}
+        {geo.status === 'granted' ? (
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
+                <span className="text-sm font-medium text-primary">My location</span>
+              </div>
+              <button
+                type="button"
+                onClick={geo.clear}
+                className="text-xs text-muted-foreground hover:text-foreground transition"
+              >
+                Change location
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">
+                Within {radiusMiles} mi
+              </span>
+              <input
+                type="range"
+                min={1}
+                max={50}
+                step={1}
+                value={radiusMiles}
+                onChange={(e) => setRadiusMiles(Number(e.target.value))}
+                className="flex-1 accent-primary"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
             <button
               type="button"
               disabled={geo.status === 'requesting' || geo.status === 'unavailable'}
               onClick={geo.request}
-              className="shrink-0 border rounded-xl px-3 py-2 text-sm font-medium hover:bg-muted disabled:opacity-40 transition"
-              title={geo.status === 'unavailable' ? 'Geolocation not supported by your browser' : 'Use your current location'}
+              className="w-full flex items-center justify-center gap-2 border-2 border-primary/40 text-primary rounded-xl px-4 py-2.5 text-sm font-medium hover:bg-primary/5 disabled:opacity-40 transition"
+              title={geo.status === 'unavailable' ? 'Geolocation not supported by your browser' : undefined}
             >
-              {geo.status === 'requesting' ? '…' : '📍 Near me'}
+              {geo.status === 'requesting' ? '…' : '📍 Use my current location'}
             </button>
-          )}
-        </div>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground">or enter a location</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+            <input
+              type="text"
+              placeholder="City or neighborhood…"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+        )}
         {geo.error && (
           <p className="text-xs text-destructive">{geo.error}</p>
         )}
 
-        {/* Vibe filters */}
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Vibe</p>
-          <div className="flex gap-2 flex-wrap">
-            {VIBES.map((v) => (
-              <FilterChip
-                key={v}
-                label={v}
-                active={activeVibes.has(v)}
-                onToggle={() => setActiveVibes(toggleSet(activeVibes, v))}
-              />
-            ))}
-          </div>
-        </div>
+        {/* Collapsible filters */}
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((v) => !v)}
+          className="flex items-center gap-2 text-sm font-medium border rounded-xl px-4 py-2 hover:bg-muted transition w-full justify-between"
+        >
+          <span>
+            Filters{activeFilterCount > 0 ? ` · ${activeFilterCount} active` : ''}
+          </span>
+          <span className="text-muted-foreground">{filtersOpen ? '▲' : '▼'}</span>
+        </button>
 
-        {/* Cuisine filters */}
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Cuisine</p>
-          <div className="flex gap-2 flex-wrap">
-            {CUISINES.map((c) => (
-              <FilterChip
-                key={c}
-                label={c}
-                active={activeCuisines.has(c)}
-                onToggle={() => setActiveCuisines(toggleSet(activeCuisines, c))}
-              />
-            ))}
-          </div>
-        </div>
+        {filtersOpen && (
+          <div className="space-y-4 border rounded-xl p-4">
+            <FilterSection label="Vibe">
+              {VIBES.map((v) => (
+                <FilterChip
+                  key={v}
+                  label={v}
+                  active={activeVibes.has(v)}
+                  onToggle={() => setActiveVibes(toggleSet(activeVibes, v))}
+                />
+              ))}
+            </FilterSection>
 
-        {/* Price filters */}
-        <div className="space-y-2">
-          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Price</p>
-          <div className="flex gap-2">
-            {PRICES.map(({ label, value }) => (
-              <FilterChip
-                key={value}
-                label={label}
-                active={activePrices.has(value)}
-                onToggle={() => setActivePrices(toggleSet(activePrices, value))}
-              />
-            ))}
+            <FilterSection label="Cuisine">
+              {CUISINES.map((c) => (
+                <FilterChip
+                  key={c}
+                  label={c}
+                  active={activeCuisines.has(c)}
+                  onToggle={() => setActiveCuisines(toggleSet(activeCuisines, c))}
+                />
+              ))}
+            </FilterSection>
+
+            <FilterSection label="Price">
+              {PRICES.map(({ label, value }) => (
+                <FilterChip
+                  key={value}
+                  label={label}
+                  active={activePrices.has(value)}
+                  onToggle={() => setActivePrices(toggleSet(activePrices, value))}
+                />
+              ))}
+            </FilterSection>
+
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Min Rating</p>
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-muted-foreground whitespace-nowrap w-14">
+                  {minRating === 0 ? 'Any' : `⭐ ${minRating}+`}
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={5}
+                  step={0.1}
+                  value={minRating}
+                  onChange={(e) => setMinRating(Number(e.target.value))}
+                  className="flex-1 accent-primary"
+                />
+              </div>
+            </div>
+
+            <FilterSection label="Dietary">
+              {DIETARY.map((d) => (
+                <FilterChip
+                  key={d}
+                  label={d}
+                  active={activeDietary.has(d)}
+                  onToggle={() => setActiveDietary(toggleSet(activeDietary, d))}
+                />
+              ))}
+            </FilterSection>
+
+            <FilterSection label="Experience">
+              {EXPERIENCES.map((e) => (
+                <FilterChip
+                  key={e}
+                  label={e}
+                  active={activeExperiences.has(e)}
+                  onToggle={() => setActiveExperiences(toggleSet(activeExperiences, e))}
+                />
+              ))}
+            </FilterSection>
           </div>
-        </div>
+        )}
+
       </form>
 
       {searchError && <p className="text-destructive text-sm">{searchError}</p>}
 
       {/* Search results */}
-      {searchResults !== null && (
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold">
-              {searchResults.length === 0
-                ? 'No restaurants found — try adjusting your filters'
-                : `${searchResults.length} restaurant${searchResults.length !== 1 ? 's' : ''} found`}
-            </p>
-            {searchResults.length > 0 && (
-              <div className="flex border rounded-lg overflow-hidden text-xs font-medium">
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-                >
-                  List
-                </button>
-                <button
-                  onClick={() => setViewMode('map')}
-                  className={`px-3 py-1.5 transition-colors ${viewMode === 'map' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
-                >
-                  Map
-                </button>
-              </div>
-            )}
-          </div>
+      {searchResults !== null && (() => {
+        const displayResults = applyFilters(searchResults)
+        return (
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">
+                {displayResults.length === 0
+                  ? 'No restaurants found — try adjusting your filters'
+                  : `${displayResults.length} restaurant${displayResults.length !== 1 ? 's' : ''} found`}
+              </p>
+              {displayResults.length > 0 && (
+                <div className="flex border rounded-lg overflow-hidden text-xs font-medium">
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`px-3 py-1.5 transition-colors ${viewMode === 'list' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                  >
+                    List
+                  </button>
+                  <button
+                    onClick={() => setViewMode('map')}
+                    className={`px-3 py-1.5 transition-colors ${viewMode === 'map' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}
+                  >
+                    Map
+                  </button>
+                </div>
+              )}
+            </div>
 
-          {viewMode === 'map' ? (
-            <RestaurantMap
-              places={searchResults}
-              scannedMap={scannedMap}
-              onView={navigateToDetail}
-              userLat={geo.lat}
-              userLng={geo.lng}
-            />
-          ) : (
-            searchResults.map((place) => (
-              <RestaurantCard
-                key={place.id}
-                place={place}
-                scanned={scannedMap.get(place.name.toLowerCase())}
-                onView={() => navigateToDetail(place)}
+            {viewMode === 'map' ? (
+              <RestaurantMap
+                places={displayResults}
+                scannedMap={scannedMap}
+                onView={navigateToDetail}
+                userLat={geo.lat}
+                userLng={geo.lng}
               />
-            ))
-          )}
-        </section>
-      )}
+            ) : (
+              displayResults.map((place) => (
+                <RestaurantCard
+                  key={place.id}
+                  place={place}
+                  scanned={scannedMap.get(place.name.toLowerCase())}
+                  onView={() => navigateToDetail(place)}
+                />
+              ))
+            )}
+          </section>
+        )
+      })()}
 
       {/* Your previously scanned matches */}
       {scannedList.length > 0 && searchResults === null && (
@@ -417,6 +596,8 @@ export default function DiscoverPage() {
                 websiteUri: null,
                 lat: null,
                 lng: null,
+                rating: null,
+                reviewCount: null,
               }))}
               scannedMap={scannedMap}
               onView={(place) => navigate(`/restaurants/${encodeURIComponent(place.name)}`, { state: { place } })}
@@ -434,6 +615,8 @@ export default function DiscoverPage() {
                 websiteUri: null,
                 lat: null,
                 lng: null,
+                rating: null,
+                reviewCount: null,
               }
               return (
                 <RestaurantCard

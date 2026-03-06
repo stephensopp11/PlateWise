@@ -85,6 +85,7 @@ export default function RestaurantMap({ places, scannedMap, onView, userLat, use
                     <p className="text-xs text-muted-foreground">
                       {selected.cuisine}
                       {selected.priceLevel ? ` · ${priceLabel(selected.priceLevel)}` : ''}
+                      {selected.rating != null ? ` · ⭐ ${selected.rating.toFixed(1)}` : ''}
                     </p>
                   </div>
                   {scanned && (

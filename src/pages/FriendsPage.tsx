@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { computeTasteTwinScore } from '@/lib/scoring'
@@ -13,8 +14,18 @@ interface Friend {
   tasteTwinScore: number
 }
 
+interface DiningGroup {
+  id: string
+  name: string
+  createdBy: string
+  memberCount: number
+  memberNames: string[]
+  myStatus: 'invited' | 'joined' | 'declined'
+}
+
 export default function FriendsPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [friends, setFriends] = useState<Friend[]>([])
   const [loading, setLoading] = useState(true)
   const [searchEmail, setSearchEmail] = useState('')
@@ -22,6 +33,14 @@ export default function FriendsPage() {
   const [searchError, setSearchError] = useState('')
   const [searchResult, setSearchResult] = useState<{ id: string; display_name: string } | null>(null)
   const [sendingRequest, setSendingRequest] = useState(false)
+
+  // Group dining state
+  const [groups, setGroups] = useState<DiningGroup[]>([])
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [newGroupName, setNewGroupName] = useState('')
+  const [selectedFriendIds, setSelectedFriendIds] = useState<Set<string>>(new Set())
+  const [creatingGroup, setCreatingGroup] = useState(false)
+  const [createGroupError, setCreateGroupError] = useState('')
 
   async function loadFriends() {
     if (!user) return
@@ -65,7 +84,112 @@ export default function FriendsPage() {
     setLoading(false)
   }
 
-  useEffect(() => { loadFriends() }, [user])
+  async function loadGroups() {
+    if (!user) return
+
+    // Get all groups where I'm a member
+    const { data: myMemberships } = await supabase
+      .from('dining_group_members')
+      .select('group_id, status')
+      .eq('user_id', user.id)
+      .neq('status', 'declined')
+
+    if (!myMemberships || myMemberships.length === 0) {
+      setGroups([])
+      return
+    }
+
+    const groupIds = myMemberships.map((m) => m.group_id)
+    const statusMap = new Map(myMemberships.map((m) => [m.group_id, m.status as DiningGroup['myStatus']]))
+
+    const { data: groupRows } = await supabase
+      .from('dining_groups')
+      .select('id, name, created_by')
+      .in('id', groupIds)
+
+    if (!groupRows) return
+
+    // Load all members for these groups
+    const { data: allMembers } = await supabase
+      .from('dining_group_members')
+      .select('group_id, user_id, status')
+      .in('group_id', groupIds)
+      .neq('status', 'declined')
+
+    const memberUserIds = [...new Set((allMembers ?? []).map((m) => m.user_id))]
+    const { data: memberProfiles } = await supabase
+      .from('user_profiles')
+      .select('id, display_name')
+      .in('id', memberUserIds)
+
+    const nameMap = new Map((memberProfiles ?? []).map((p) => [p.id, p.display_name as string]))
+
+    const built: DiningGroup[] = groupRows.map((g) => {
+      const gMembers = (allMembers ?? []).filter((m) => m.group_id === g.id)
+      const otherNames = gMembers
+        .filter((m) => m.user_id !== user.id)
+        .map((m) => nameMap.get(m.user_id) ?? 'Unknown')
+        .slice(0, 3)
+      return {
+        id: g.id,
+        name: g.name,
+        createdBy: g.created_by,
+        memberCount: gMembers.length,
+        memberNames: otherNames,
+        myStatus: statusMap.get(g.id) ?? 'invited',
+      }
+    })
+
+    setGroups(built)
+  }
+
+  async function createGroup() {
+    if (!user || !newGroupName.trim() || selectedFriendIds.size === 0) return
+    setCreatingGroup(true)
+    setCreateGroupError('')
+
+    const { data: group, error } = await supabase
+      .from('dining_groups')
+      .insert({ name: newGroupName.trim(), created_by: user.id })
+      .select('id')
+      .single()
+
+    if (error || !group) {
+      setCreateGroupError(error?.message ?? 'Failed to create group. Make sure the database migration has been applied.')
+      setCreatingGroup(false)
+      return
+    }
+
+    // Insert creator as joined + selected friends as invited
+    const memberRows = [
+      { group_id: group.id, user_id: user.id, status: 'joined', joined_at: new Date().toISOString() },
+      ...[...selectedFriendIds].map((fid) => ({
+        group_id: group.id,
+        user_id: fid,
+        status: 'invited',
+        joined_at: null,
+      })),
+    ]
+
+    await supabase.from('dining_group_members').insert(memberRows)
+
+    setCreatingGroup(false)
+    setShowCreateGroup(false)
+    setNewGroupName('')
+    setSelectedFriendIds(new Set())
+    navigate(`/groups/${group.id}`)
+  }
+
+  function toggleFriendSelection(userId: string) {
+    setSelectedFriendIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(userId)) next.delete(userId)
+      else next.add(userId)
+      return next
+    })
+  }
+
+  useEffect(() => { loadFriends(); loadGroups() }, [user])
 
   async function handleSearch(e: { preventDefault(): void }) {
     e.preventDefault()
@@ -292,6 +416,121 @@ export default function FriendsPage() {
             </div>
           </div>
         ))}
+      </section>
+      {/* ── Group Dining ─────────────────────────────────────────── */}
+
+      {/* Pending group invitations */}
+      {groups.filter((g) => g.myStatus === 'invited').length > 0 && (
+        <section className="space-y-2">
+          <p className="text-sm font-semibold">Group Invitations</p>
+          {groups
+            .filter((g) => g.myStatus === 'invited')
+            .map((g) => (
+              <div
+                key={g.id}
+                className="border rounded-xl p-3 flex items-center justify-between bg-card cursor-pointer hover:shadow-sm transition"
+                onClick={() => navigate(`/groups/${g.id}`)}
+              >
+                <div>
+                  <p className="font-medium text-sm">{g.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {g.memberCount} member{g.memberCount !== 1 ? 's' : ''}
+                    {g.memberNames.length > 0 ? ` · ${g.memberNames.join(', ')}` : ''}
+                  </p>
+                </div>
+                <span className="text-xs text-primary font-medium">View →</span>
+              </div>
+            ))}
+        </section>
+      )}
+
+      {/* My groups */}
+      <section className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-semibold">
+            Group Dining
+            {groups.filter((g) => g.myStatus === 'joined').length > 0 &&
+              ` (${groups.filter((g) => g.myStatus === 'joined').length})`}
+          </p>
+          <button
+            onClick={() => { setShowCreateGroup((v) => !v); setSelectedFriendIds(new Set()) }}
+            className="text-xs text-primary font-medium hover:underline"
+          >
+            {showCreateGroup ? 'Cancel' : '+ New Group'}
+          </button>
+        </div>
+
+        {/* Create group form */}
+        {showCreateGroup && (
+          <div className="border rounded-xl p-4 bg-card space-y-3">
+            <p className="text-sm font-medium">Create a new group</p>
+            <input
+              type="text"
+              placeholder="Group name (e.g. Friday Crew)"
+              value={newGroupName}
+              onChange={(e) => setNewGroupName(e.target.value)}
+              className="w-full border rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {accepted.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Add friends first to include them in a group.</p>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Add friends</p>
+                {accepted.map((f) => (
+                  <label key={f.userId} className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={selectedFriendIds.has(f.userId)}
+                      onChange={() => toggleFriendSelection(f.userId)}
+                      className="accent-primary"
+                    />
+                    <span className="text-sm">{f.displayName}</span>
+                    <TwinBadge score={f.tasteTwinScore} />
+                  </label>
+                ))}
+              </div>
+            )}
+            {createGroupError && (
+              <p className="text-destructive text-xs">{createGroupError}</p>
+            )}
+            <button
+              onClick={createGroup}
+              disabled={creatingGroup || !newGroupName.trim() || selectedFriendIds.size === 0}
+              className="w-full bg-primary text-primary-foreground rounded-xl py-2.5 text-sm font-semibold hover:opacity-90 disabled:opacity-50 transition"
+            >
+              {creatingGroup ? 'Creating…' : 'Create Group'}
+            </button>
+          </div>
+        )}
+
+        {/* Group list */}
+        {groups.filter((g) => g.myStatus === 'joined').length === 0 && !showCreateGroup && (
+          <div className="text-center py-8 space-y-2">
+            <div className="text-3xl">🍽️</div>
+            <p className="font-medium text-sm">No group dining sessions yet</p>
+            <p className="text-muted-foreground text-sm">
+              Create a group with friends to get restaurant recommendations everyone will enjoy.
+            </p>
+          </div>
+        )}
+        {groups
+          .filter((g) => g.myStatus === 'joined')
+          .map((g) => (
+            <div
+              key={g.id}
+              onClick={() => navigate(`/groups/${g.id}`)}
+              className="border rounded-xl p-3 flex items-center justify-between bg-card cursor-pointer hover:shadow-sm transition"
+            >
+              <div>
+                <p className="font-medium text-sm">{g.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {g.memberCount} member{g.memberCount !== 1 ? 's' : ''}
+                  {g.memberNames.length > 0 ? ` · ${g.memberNames.join(', ')}` : ''}
+                </p>
+              </div>
+              <span className="text-muted-foreground text-sm">→</span>
+            </div>
+          ))}
       </section>
     </div>
   )

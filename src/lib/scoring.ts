@@ -91,6 +91,24 @@ export function updateTasteProfile(
   return updates
 }
 
+// ─── Quality-Adjusted Restaurant Score ───────────────────────────────────────
+
+/**
+ * Blend a taste-profile match score with a Google star rating so that
+ * poorly-reviewed restaurants are deprioritized even when they match well.
+ *
+ * Formula: tasteMatch * clamp(rating / 4.0, 0.25, 1.0)
+ * - 4–5 stars: no penalty (factor = 1.0)
+ * - 3 stars:   factor ≈ 0.75
+ * - 1 star:    factor = 0.25
+ * - null:      factor = 1.0 (no data → no penalty)
+ */
+export function qualityAdjustedScore(tasteMatch: number, rating: number | null): number {
+  if (rating === null) return tasteMatch
+  const factor = Math.min(1.0, Math.max(0.25, rating / 4.0))
+  return Math.round(tasteMatch * factor)
+}
+
 // ─── Taste Twin Similarity ────────────────────────────────────────────────────
 
 /**

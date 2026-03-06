@@ -12,6 +12,7 @@ import MealLogPage from '@/pages/MealLogPage'
 import MealHistoryPage from '@/pages/MealHistoryPage'
 import RestaurantsPage from '@/pages/RestaurantsPage'
 import FriendsPage from '@/pages/FriendsPage'
+import GroupDiningPage from '@/pages/GroupDiningPage'
 import ProfilePage from '@/pages/ProfilePage'
 
 export default function App() {
@@ -42,6 +43,7 @@ export default function App() {
           <Route path="/log" element={<MealLogPage />} />
           <Route path="/history" element={<MealHistoryPage />} />
           <Route path="/friends" element={<FriendsPage />} />
+          <Route path="/groups/:id" element={<GroupDiningPage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Route>
       </Route>
