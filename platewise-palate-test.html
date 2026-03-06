@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PlateWise — Palate Personality Test</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --cream: #F5F0E8;
+    --warm-white: #FDFAF5;
+    --charcoal: #1C1C1A;
+    --ink: #2D2D2A;
+    --rust: #C4632A;
+    --rust-light: #E8845A;
+    --sage: #7A9E7E;
+    --sage-light: #A8C5AB;
+    --gold: #D4A847;
+    --muted: #8A877F;
+    --border: #E0DAD0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--cream);
+    color: var(--ink);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.6;
+  }
+
+  .app {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* HEADER */
+  .header {
+    padding: 48px 0 32px;
+    text-align: center;
+  }
+
+  .wordmark {
+    font-family: 'Playfair Display', serif;
+    font-size: 15px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  .tagline {
+    font-size: 13px;
+    color: var(--muted);
+    font-weight: 300;
+    letter-spacing: 0.05em;
+  }
+
+  /* PROGRESS */
+  .progress-bar {
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    border-radius: 2px;
+    margin: 24px 0 8px;
+    overflow: hidden;
+  }
+
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--rust), var(--gold));
+    border-radius: 2px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .progress-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 40px;
+  }
+
+  /* SECTION HEADER */
+  .section-header {
+    margin-bottom: 32px;
+    animation: fadeUp 0.4s ease both;
+  }
+
+  .section-number {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rust);
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1.25;
+    color: var(--charcoal);
+    margin-bottom: 10px;
+  }
+
+  .section-desc {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.6;
+    font-weight: 300;
+  }
+
+  /* QUESTION CARD */
+  .question-card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+    animation: fadeUp 0.4s ease both;
+    transition: box-shadow 0.2s ease;
+  }
+
+  .question-card:hover {
+    box-shadow: 0 4px 24px rgba(28,28,26,0.06);
+  }
+
+  .question-text {
+    font-size: 15px;
+    font-weight: 400;
+    line-height: 1.55;
+    color: var(--ink);
+    margin-bottom: 20px;
+  }
+
+  .question-emoji {
+    font-size: 20px;
+    margin-bottom: 10px;
+    display: block;
+  }
+
+  /* SLIDER */
+  .slider-wrap {
+    position: relative;
+    padding-bottom: 28px;
+  }
+
+  .slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    letter-spacing: 0.03em;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border);
+    border-radius: 4px;
+    outline: none;
+    cursor: pointer;
+    position: relative;
+  }
+
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--charcoal);
+    border: 3px solid var(--warm-white);
+    box-shadow: 0 2px 8px rgba(28,28,26,0.25);
+    transition: transform 0.15s ease, background 0.2s ease;
+    cursor: grab;
+  }
+
+  input[type="range"]::-webkit-slider-thumb:active {
+    transform: scale(1.2);
+    cursor: grabbing;
+  }
+
+  input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--charcoal);
+    border: 3px solid var(--warm-white);
+    box-shadow: 0 2px 8px rgba(28,28,26,0.25);
+    cursor: grab;
+  }
+
+  .slider-value {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 12px;
+    color: var(--rust);
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  /* PILL CHOICE */
+  .pill-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+  }
+
+  .pill {
+    padding: 10px 18px;
+    border-radius: 100px;
+    border: 1.5px solid var(--border);
+    font-size: 13px;
+    cursor: pointer;
+    background: transparent;
+    color: var(--ink);
+    transition: all 0.18s ease;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 400;
+    letter-spacing: 0.01em;
+  }
+
+  .pill:hover {
+    border-color: var(--rust-light);
+    background: rgba(196, 99, 42, 0.04);
+  }
+
+  .pill.selected {
+    background: var(--charcoal);
+    border-color: var(--charcoal);
+    color: var(--cream);
+  }
+
+  /* NAVIGATION */
+  .nav-buttons {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 40px;
+    gap: 16px;
+  }
+
+  .btn {
+    padding: 14px 32px;
+    border-radius: 100px;
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    letter-spacing: 0.02em;
+  }
+
+  .btn-primary {
+    background: var(--charcoal);
+    color: var(--cream);
+    flex: 1;
+    max-width: 240px;
+    margin-left: auto;
+  }
+
+  .btn-primary:hover {
+    background: var(--rust);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px rgba(196, 99, 42, 0.3);
+  }
+
+  .btn-secondary {
+    background: transparent;
+    color: var(--muted);
+    border: 1.5px solid var(--border);
+  }
+
+  .btn-secondary:hover {
+    border-color: var(--muted);
+    color: var(--ink);
+  }
+
+  /* RESULTS */
+  .results-screen {
+    display: none;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .results-hero {
+    text-align: center;
+    padding: 48px 0 40px;
+  }
+
+  .archetype-badge {
+    display: inline-block;
+    background: var(--charcoal);
+    color: var(--cream);
+    padding: 6px 20px;
+    border-radius: 100px;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+  }
+
+  .archetype-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--charcoal);
+    line-height: 1.1;
+    margin-bottom: 16px;
+  }
+
+  .archetype-desc {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.65;
+    max-width: 440px;
+    margin: 0 auto 32px;
+    font-weight: 300;
+  }
+
+  .archetype-icon {
+    font-size: 64px;
+    margin-bottom: 24px;
+    display: block;
+  }
+
+  /* DIMENSION BARS */
+  .dimensions {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 24px;
+  }
+
+  .dimensions-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    margin-bottom: 24px;
+    color: var(--charcoal);
+  }
+
+  .dim-row {
+    margin-bottom: 20px;
+  }
+
+  .dim-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: var(--ink);
+  }
+
+  .dim-label span:last-child {
+    color: var(--rust);
+    font-weight: 500;
+  }
+
+  .dim-bar {
+    height: 6px;
+    background: var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+
+  .dim-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1) 0.3s;
+  }
+
+  /* CUISINE CHIPS */
+  .cuisine-section {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 32px;
+    margin-bottom: 24px;
+  }
+
+  .cuisine-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 18px;
+    margin-bottom: 8px;
+    color: var(--charcoal);
+  }
+
+  .cuisine-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 20px;
+    font-weight: 300;
+  }
+
+  .cuisine-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .cuisine-chip {
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+
+  .chip-high { background: rgba(196, 99, 42, 0.12); color: var(--rust); border: 1px solid rgba(196, 99, 42, 0.25); }
+  .chip-med { background: rgba(122, 158, 126, 0.12); color: #4A7E50; border: 1px solid rgba(122, 158, 126, 0.3); }
+  .chip-low { background: rgba(138, 135, 127, 0.08); color: var(--muted); border: 1px solid var(--border); }
+
+  /* INSIGHT CARDS */
+  .insights {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+
+  .insight-card {
+    background: var(--warm-white);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+  }
+
+  .insight-icon { font-size: 22px; margin-bottom: 10px; }
+  .insight-label { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+  .insight-value { font-family: 'Playfair Display', serif; font-size: 17px; color: var(--charcoal); }
+
+  .restart-btn {
+    display: block;
+    width: 100%;
+    padding: 16px;
+    border-radius: 100px;
+    background: transparent;
+    border: 1.5px solid var(--border);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+
+  .restart-btn:hover {
+    border-color: var(--charcoal);
+    color: var(--charcoal);
+  }
+
+  /* INTRO SCREEN */
+  .intro-screen {
+    text-align: center;
+    padding: 40px 0;
+    animation: fadeUp 0.5s ease both;
+  }
+
+  .intro-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 38px;
+    font-weight: 400;
+    color: var(--charcoal);
+    line-height: 1.2;
+    margin-bottom: 16px;
+  }
+
+  .intro-title em {
+    font-style: italic;
+    color: var(--rust);
+  }
+
+  .intro-desc {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.65;
+    max-width: 420px;
+    margin: 0 auto 40px;
+    font-weight: 300;
+  }
+
+  .intro-stats {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-bottom: 48px;
+  }
+
+  .stat { text-align: center; }
+  .stat-num { font-family: 'Playfair Display', serif; font-size: 28px; color: var(--charcoal); }
+  .stat-label { font-size: 11px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+
+  .intro-divider {
+    width: 1px;
+    height: 40px;
+    background: var(--border);
+    margin: 0 8px;
+    align-self: center;
+  }
+
+  .start-btn {
+    display: inline-block;
+    padding: 16px 48px;
+    background: var(--charcoal);
+    color: var(--cream);
+    border-radius: 100px;
+    font-size: 15px;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+    letter-spacing: 0.02em;
+  }
+
+  .start-btn:hover {
+    background: var(--rust);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(196, 99, 42, 0.3);
+  }
+
+  .plate-decoration {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--border), var(--cream));
+    border: 2px solid var(--border);
+    margin: 0 auto 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    box-shadow: inset 0 2px 8px rgba(28,28,26,0.08), 0 4px 24px rgba(28,28,26,0.06);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .hidden { display: none !important; }
+
+  /* Animated track fill */
+  input[type="range"] {
+    background: linear-gradient(to right, var(--rust) 0%, var(--rust) 50%, var(--border) 50%, var(--border) 100%);
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <div class="wordmark">PlateWise</div>
+    <div class="tagline">Discover your palate profile</div>
+  </div>
+
+  <!-- INTRO -->
+  <div class="intro-screen" id="introScreen">
+    <div class="plate-decoration">🍽️</div>
+    <h1 class="intro-title">What does your<br><em>palate</em> say about you?</h1>
+    <p class="intro-desc">A short, science-backed tasting test to map your flavor personality — so PlateWise can make recommendations that actually excite you.</p>
+    <div class="intro-stats">
+      <div class="stat">
+        <div class="stat-num">5</div>
+        <div class="stat-label">Sections</div>
+      </div>
+      <div class="intro-divider"></div>
+      <div class="stat">
+        <div class="stat-num">~4</div>
+        <div class="stat-label">Minutes</div>
+      </div>
+      <div class="intro-divider"></div>
+      <div class="stat">
+        <div class="stat-num">1</div>
+        <div class="stat-label">Profile</div>
+      </div>
+    </div>
+    <button class="start-btn" onclick="startTest()">Begin the Test</button>
+  </div>
+
+  <!-- QUIZ -->
+  <div class="quiz-screen hidden" id="quizScreen">
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-label">
+      <span id="progressText">Section 1 of 5</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div id="sectionContent"></div>
+    <div class="nav-buttons">
+      <button class="btn btn-secondary" id="backBtn" onclick="prevSection()" style="display:none">← Back</button>
+      <button class="btn btn-primary" id="nextBtn" onclick="nextSection()">Continue →</button>
+    </div>
+  </div>
+
+  <!-- RESULTS -->
+  <div class="results-screen" id="resultsScreen"></div>
+</div>
+
+<script>
+const sections = [
+  {
+    number: "01",
+    title: "Core Taste Preferences",
+    desc: "How you respond to the five fundamental taste modalities forms the foundation of your palate.",
+    questions: [
+      { id: "sweet", emoji: "🍯", text: "How much do you enjoy intensely sweet foods — think glazed donuts, dessert wines, or very ripe tropical fruit?", type: "slider", left: "Not at all", right: "Love it" },
+      { id: "bitter", emoji: "☕", text: "How do you feel about bitter flavors — espresso, dark chocolate (85%+), radicchio, tonic water?", type: "slider", left: "Avoid it", right: "Seek it out" },
+      { id: "sour", emoji: "🍋", text: "How much do you enjoy sharp sour or acidic flavors — tamarind, vinegar dressings, very sour candy, fermented shrubs?", type: "slider", left: "Too sharp", right: "Bright & exciting" },
+      { id: "umami", emoji: "🍄", text: "How much do you enjoy deep savory, meaty or umami-rich flavors — miso, aged parmesan, soy sauce, anchovy?", type: "slider", left: "Underwhelming", right: "Deeply satisfying" },
+    ]
+  },
+  {
+    number: "02",
+    title: "Intensity & Heat",
+    desc: "Intensity tolerance reveals whether you gravitate toward subtle nuance or bold sensory experiences.",
+    questions: [
+      { id: "spice", emoji: "🌶️", text: "How much chili heat do you genuinely enjoy in food?", type: "pills", options: ["None at all", "Mild warmth", "Medium heat", "The hotter the better"] },
+      { id: "bold", emoji: "🧄", text: "How do you feel about very pungent, assertive ingredients — strong garlic, blue cheese, fish sauce, Worcestershire?", type: "slider", left: "Overpowering", right: "Deeply appealing" },
+      { id: "acid_intensity", emoji: "🍷", text: "Think of a very acidic wine or a sharp vinaigrette. How do you feel about high-acid intensity in a dish?", type: "slider", left: "Too aggressive", right: "Love the zing" },
+      { id: "richness", emoji: "🧈", text: "How do you feel about very rich, fatty, indulgent food — think duck confit, triple cream brie, buttery hollandaise?", type: "slider", left: "Too heavy", right: "Absolutely love it" },
+    ]
+  },
+  {
+    number: "03",
+    title: "Texture & Mouthfeel",
+    desc: "Texture often determines food acceptance more than flavor. This reveals your physical food preferences.",
+    questions: [
+      { id: "crunch", emoji: "🥐", text: "How important is crunch or crispiness to your enjoyment of food?", type: "slider", left: "Doesn't matter", right: "Essential" },
+      { id: "creamy", emoji: "🍦", text: "How much do you enjoy smooth, creamy, or silky textures — mousse, ramen broth, velvety sauces?", type: "slider", left: "Too soft", right: "Pure pleasure" },
+      { id: "texture_sensitivity", emoji: "🫛", text: "Are you sensitive to unexpected textures — soft things that should be firm, gritty things, or gelatinous foods?", type: "pills", options: ["Very sensitive", "Somewhat sensitive", "Not really", "Textures excite me"] },
+      { id: "temp_contrast", emoji: "🍨", text: "How much do you enjoy hot-cold or crispy-soft contrasts in a single dish — like warm pie with cold ice cream?", type: "slider", left: "Prefer consistency", right: "Love the contrast" },
+    ]
+  },
+  {
+    number: "04",
+    title: "Adventurousness",
+    desc: "Your psychological relationship with novelty shapes how broadly your palate can grow.",
+    questions: [
+      { id: "novelty", emoji: "🗺️", text: "You're at a restaurant and you've never heard of any of the dishes. What do you do?", type: "pills", options: ["Ask for something familiar", "Pick the safest-sounding option", "Pick something interesting", "Order the most unfamiliar thing"] },
+      { id: "fermented", emoji: "🧀", text: "How do you feel about strongly fermented or aged flavors — kimchi, blue cheese, natto, funky aged meats?", type: "slider", left: "I avoid them", right: "I seek them out" },
+      { id: "reorder", emoji: "🔄", text: "At a restaurant you love, how often do you reorder the same dish vs. explore the menu?", type: "pills", options: ["Always reorder favorites", "Usually reorder", "Sometimes explore", "Always try something new"] },
+      { id: "complexity", emoji: "🌿", text: "I prefer dishes with complex, layered flavors over simple, clean preparations.", type: "slider", left: "Simple & clean", right: "Complex & layered" },
+    ]
+  },
+  {
+    number: "05",
+    title: "Signature Flavors",
+    desc: "Reactions to polarizing foods are among the most scientifically revealing signals of your palate.",
+    questions: [
+      { id: "cilantro", emoji: "🌿", text: "How do you feel about cilantro?", type: "pills", options: ["Tastes like soap — avoid", "Don't mind it", "Like it", "Love it, add more"] },
+      { id: "olives", emoji: "🫒", text: "How do you feel about olives?", type: "slider", left: "Pick them out always", right: "Would drink the brine" },
+      { id: "licorice", emoji: "⭐", text: "How do you feel about licorice, anise, or fennel flavors?", type: "slider", left: "Strongly dislike", right: "Really enjoy" },
+      { id: "umami_funk", emoji: "🦑", text: "Dishes built on very funky umami — think dried shrimp paste, very aged cheese rinds, Korean doenjang. Your reaction?", type: "pills", options: ["Strong no", "Hesitant", "Curious & open", "Give me more"] },
+    ]
+  }
+];
+
+let answers = {};
+let currentSection = 0;
+
+function startTest() {
+  document.getElementById('introScreen').classList.add('hidden');
+  document.getElementById('quizScreen').classList.remove('hidden');
+  renderSection();
+}
+
+function renderSection() {
+  const sec = sections[currentSection];
+  const total = sections.length;
+  const pct = Math.round((currentSection / total) * 100);
+  
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressText').textContent = `Section ${currentSection + 1} of ${total}`;
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('backBtn').style.display = currentSection > 0 ? 'block' : 'none';
+  document.getElementById('nextBtn').textContent = currentSection === total - 1 ? 'See My Profile →' : 'Continue →';
+
+  let html = `<div class="section-header">
+    <div class="section-number">${sec.number} / 05</div>
+    <h2 class="section-title">${sec.title}</h2>
+    <p class="section-desc">${sec.desc}</p>
+  </div>`;
+
+  sec.questions.forEach((q, i) => {
+    const val = answers[q.id] !== undefined ? answers[q.id] : (q.type === 'slider' ? 50 : null);
+    html += `<div class="question-card" style="animation-delay:${i * 0.07}s">
+      <span class="question-emoji">${q.emoji}</span>
+      <p class="question-text">${q.text}</p>`;
+
+    if (q.type === 'slider') {
+      html += `<div class="slider-wrap">
+        <div class="slider-labels"><span>${q.left}</span><span>${q.right}</span></div>
+        <input type="range" min="0" max="100" value="${val}" 
+          oninput="setAnswer('${q.id}', this.value); updateSlider(this)"
+          onchange="setAnswer('${q.id}', this.value)">
+        <div class="slider-value" id="sv_${q.id}">${getSliderLabel(val)}</div>
+      </div>`;
+    } else {
+      html += `<div class="pill-group">`;
+      q.options.forEach((opt, oi) => {
+        const sel = answers[q.id] === oi ? 'selected' : '';
+        html += `<button class="pill ${sel}" onclick="setPillAnswer('${q.id}', ${oi}, this)">${opt}</button>`;
+      });
+      html += `</div>`;
+    }
+
+    html += `</div>`;
+  });
+
+  document.getElementById('sectionContent').innerHTML = html;
+  
+  // Init sliders visual
+  sec.questions.forEach(q => {
+    if (q.type === 'slider') {
+      const slider = document.querySelector(`input[type=range][oninput*="${q.id}"]`);
+      if (slider) updateSlider(slider);
+    }
+  });
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function getSliderLabel(v) {
+  v = parseInt(v);
+  if (v <= 15) return "Strongly dislike";
+  if (v <= 35) return "Not really";
+  if (v <= 55) return "Neutral";
+  if (v <= 75) return "Enjoy it";
+  if (v <= 90) return "Really enjoy";
+  return "Absolutely love";
+}
+
+function updateSlider(el) {
+  const id = el.getAttribute('oninput').match(/'([^']+)'/)[1];
+  const val = el.value;
+  const pct = val + '%';
+  el.style.background = `linear-gradient(to right, #C4632A 0%, #C4632A ${pct}, #E0DAD0 ${pct}, #E0DAD0 100%)`;
+  const lbl = document.getElementById('sv_' + id);
+  if (lbl) lbl.textContent = getSliderLabel(val);
+}
+
+function setAnswer(id, val) {
+  answers[id] = parseInt(val);
+}
+
+function setPillAnswer(id, idx, el) {
+  answers[id] = idx;
+  el.closest('.pill-group').querySelectorAll('.pill').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+function nextSection() {
+  if (currentSection < sections.length - 1) {
+    currentSection++;
+    renderSection();
+  } else {
+    showResults();
+  }
+}
+
+function prevSection() {
+  if (currentSection > 0) {
+    currentSection--;
+    renderSection();
+  }
+}
+
+function computeProfile() {
+  const a = answers;
+  
+  // Core scores (0-100)
+  const sweetnessScore = a.sweet || 50;
+  const bitternessScore = a.bitter || 50;
+  const sourScore = a.sour || 50;
+  const umamiScore = a.umami || 50;
+  
+  // Intensity
+  const spiceMap = { 0: 5, 1: 30, 2: 65, 3: 100 };
+  const spiceScore = spiceMap[a.spice] || 30;
+  const boldScore = a.bold || 50;
+  const richScore = a.richness || 50;
+  
+  // Texture
+  const crunchScore = a.crunch || 50;
+  const creamyScore = a.creamy || 50;
+  const contrastScore = a.temp_contrast || 50;
+  
+  // Adventure
+  const noveltyMap = { 0: 10, 1: 35, 2: 70, 3: 100 };
+  const noveltyScore = noveltyMap[a.novelty] || 50;
+  const fermentedScore = a.fermented || 50;
+  const reorderMap = { 0: 10, 1: 30, 2: 70, 3: 100 };
+  const explorerScore = reorderMap[a.reorder] || 50;
+  const complexityScore = a.complexity || 50;
+  
+  // Polarizing
+  const cilantroMap = { 0: 0, 1: 40, 2: 70, 3: 100 };
+  const cilantroScore = cilantroMap[a.cilantro] || 50;
+  const olivesScore = a.olives || 50;
+  const funkMap = { 0: 5, 1: 30, 2: 70, 3: 100 };
+  const funkScore = funkMap[a.umami_funk] || 50;
+  
+  const adventurousness = (noveltyScore + explorerScore + fermentedScore + funkScore + cilantroScore) / 5;
+  const boldness = (spiceScore + boldScore + bitternessScore + olivesScore) / 4;
+  const sensorySeeking = (complexityScore + contrastScore + sourScore + umamiScore) / 4;
+  const textureAwareness = (crunchScore + creamyScore + contrastScore) / 3;
+  const richnessPref = (richScore + creamyScore + umamiScore) / 3;
+  
+  // Archetype
+  let archetype, icon, archdesc, cuisines;
+  
+  if (adventurousness >= 70 && boldness >= 60) {
+    archetype = "The Fearless Explorer";
+    icon = "🌏";
+    archdesc = "You live for bold, unfamiliar flavors and actively seek out sensory challenge. Your palate is broad, your curiosity is relentless, and you treat every meal as a passport stamp.";
+    cuisines = [
+      { name: "Sichuan", level: "high" }, { name: "Ethiopian", level: "high" }, { name: "Korean", level: "high" },
+      { name: "Thai", level: "high" }, { name: "Peruvian", level: "med" }, { name: "Moroccan", level: "med" },
+      { name: "French", level: "low" }, { name: "American diner", level: "low" }
+    ];
+  } else if (adventurousness >= 55 && sensorySeeking >= 60) {
+    archetype = "The Curious Connoisseur";
+    icon = "🍷";
+    archdesc = "You're drawn to complexity and nuance over novelty for its own sake. You seek out quality, story, and layered experience in food — a natural food culture enthusiast.";
+    cuisines = [
+      { name: "Italian (regional)", level: "high" }, { name: "Japanese", level: "high" }, { name: "French", level: "high" },
+      { name: "Spanish", level: "med" }, { name: "Indian", level: "med" }, { name: "Mexican", level: "med" },
+      { name: "Fast food", level: "low" }
+    ];
+  } else if (boldness >= 70 && adventurousness < 55) {
+    archetype = "The Bold Traditionalist";
+    icon = "🔥";
+    archdesc = "You want intensity and satisfaction in familiar forms — big flavors, hearty portions, heat and richness. You know what you like and you like it loud.";
+    cuisines = [
+      { name: "Mexican", level: "high" }, { name: "Indian", level: "high" }, { name: "BBQ", level: "high" },
+      { name: "American", level: "high" }, { name: "Korean", level: "med" }, { name: "Thai", level: "med" },
+      { name: "Japanese", level: "low" }, { name: "Scandinavian", level: "low" }
+    ];
+  } else if (textureAwareness >= 65 && richnessPref >= 65) {
+    archetype = "The Pleasure Seeker";
+    icon = "🧈";
+    archdesc = "Comfort, richness, and satisfying mouthfeel are your north stars. You know the perfect texture of pasta, the right creaminess in a sauce, and the joy of food that genuinely nourishes.";
+    cuisines = [
+      { name: "Italian", level: "high" }, { name: "French", level: "high" }, { name: "Japanese ramen", level: "high" },
+      { name: "American", level: "high" }, { name: "Lebanese", level: "med" }, { name: "Thai", level: "med" },
+      { name: "Raw vegan", level: "low" }
+    ];
+  } else if (adventurousness < 40 && boldness < 45) {
+    archetype = "The Comfort Purist";
+    icon = "🏡";
+    archdesc = "Your palate is refined through comfort and familiarity. You know what you love, you're loyal to it, and you experience genuine joy in returning to the foods that feel like home.";
+    cuisines = [
+      { name: "American", level: "high" }, { name: "Italian", level: "high" }, { name: "British", level: "med" },
+      { name: "Chinese-American", level: "med" }, { name: "Mexican-American", level: "med" },
+      { name: "Ethiopian", level: "low" }, { name: "Fermented/raw", level: "low" }
+    ];
+  } else {
+    archetype = "The Thoughtful Taster";
+    icon = "🌿";
+    archdesc = "Balanced, considered, and genuinely curious — you appreciate both restraint and boldness, and you make deliberate choices rather than habit-driven ones. A rare and refined profile.";
+    cuisines = [
+      { name: "Japanese", level: "high" }, { name: "Mediterranean", level: "high" }, { name: "Vietnamese", level: "high" },
+      { name: "Californian", level: "med" }, { name: "Indian", level: "med" }, { name: "Greek", level: "med" },
+      { name: "Processed food", level: "low" }
+    ];
+  }
+  
+  return {
+    archetype, icon, archdesc, cuisines,
+    dimensions: [
+      { label: "Adventurousness", value: Math.round(adventurousness), color: "#C4632A" },
+      { label: "Boldness & Intensity", value: Math.round(boldness), color: "#D4A847" },
+      { label: "Sensory Complexity", value: Math.round(sensorySeeking), color: "#7A9E7E" },
+      { label: "Texture Awareness", value: Math.round(textureAwareness), color: "#9B7B6E" },
+      { label: "Richness Preference", value: Math.round(richnessPref), color: "#C4A87A" },
+    ],
+    insights: [
+      { icon: "🌶️", label: "Heat tolerance", value: spiceScore >= 70 ? "High" : spiceScore >= 40 ? "Medium" : "Low" },
+      { icon: "🧂", label: "Flavor direction", value: umamiScore > sweetnessScore ? "Savory-leaning" : "Sweet-leaning" },
+      { icon: "🥗", label: "Texture style", value: crunchScore > creamyScore ? "Crispy & firm" : "Smooth & silky" },
+      { icon: "✈️", label: "Cuisine range", value: adventurousness >= 65 ? "Wide" : adventurousness >= 45 ? "Moderate" : "Focused" },
+    ]
+  };
+}
+
+function showResults() {
+  document.getElementById('quizScreen').classList.add('hidden');
+  const rs = document.getElementById('resultsScreen');
+  rs.style.display = 'block';
+  
+  const p = computeProfile();
+  
+  let cuisineHTML = p.cuisines.map(c => 
+    `<span class="cuisine-chip chip-${c.level}">${c.name}</span>`
+  ).join('');
+  
+  let dimHTML = p.dimensions.map(d => `
+    <div class="dim-row">
+      <div class="dim-label"><span>${d.label}</span><span>${d.value}%</span></div>
+      <div class="dim-bar"><div class="dim-fill" style="width:0%; background:${d.color}" data-target="${d.value}"></div></div>
+    </div>
+  `).join('');
+  
+  let insightHTML = p.insights.map(i => `
+    <div class="insight-card">
+      <div class="insight-icon">${i.icon}</div>
+      <div class="insight-label">${i.label}</div>
+      <div class="insight-value">${i.value}</div>
+    </div>
+  `).join('');
+  
+  rs.innerHTML = `
+    <div class="results-hero">
+      <div class="archetype-badge">Your Palate Profile</div>
+      <span class="archetype-icon">${p.icon}</span>
+      <h2 class="archetype-name">${p.archetype}</h2>
+      <p class="archetype-desc">${p.archdesc}</p>
+    </div>
+    <div class="dimensions">
+      <div class="dimensions-title">Your Flavor Dimensions</div>
+      ${dimHTML}
+    </div>
+    <div class="insights">${insightHTML}</div>
+    <div class="cuisine-section">
+      <div class="cuisine-title">Cuisine Affinities</div>
+      <div class="cuisine-subtitle">Based on your palate profile, sorted by match strength</div>
+      <div class="cuisine-chips">${cuisineHTML}</div>
+    </div>
+    <button class="restart-btn" onclick="restartTest()">↩ Retake the test</button>
+  `;
+  
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.dim-fill').forEach(el => {
+      el.style.width = el.dataset.target + '%';
+    });
+  }, 200);
+}
+
+function restartTest() {
+  answers = {};
+  currentSection = 0;
+  document.getElementById('resultsScreen').style.display = 'none';
+  document.getElementById('quizScreen').classList.remove('hidden');
+  renderSection();
+}
+</script>
+</body>
+</html>
