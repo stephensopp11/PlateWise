@@ -1,12 +1,10 @@
-// ─── Google Places wrapper ────────────────────────────────────────────────────
-// Set VITE_USE_MOCK_PLACES=true for dev (no API cost).
-// Set VITE_GOOGLE_PLACES_KEY=<key> for production.
-//
-// NOTE: The Google Places API key is exposed in the browser bundle.
-// Restrict it to your production domain in the Google Cloud Console.
+// ─── Places wrapper (Foursquare v3) ──────────────────────────────────────────
+// Set VITE_USE_MOCK_PLACES=true to use mock data (no API cost).
+// Set VITE_FOURSQUARE_API_KEY=fsq3... for real results (1,000 calls/day free).
+// To migrate to Google Places (New): replace realSearch() + the key constant.
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK_PLACES === 'true'
-const PLACES_KEY = import.meta.env.VITE_GOOGLE_PLACES_KEY ?? ''
+const PLACES_KEY = import.meta.env.VITE_FOURSQUARE_API_KEY ?? ''
 
 export type PriceLevel = 1 | 2 | 3 | 4
 
@@ -132,80 +130,86 @@ function mockSearch(q: PlacesQuery): PlaceResult[] {
   return results
 }
 
-// ── Real Google Places (New) API ──────────────────────────────────────────────
+// ── Foursquare Places API (v3) ────────────────────────────────────────────────
+// Free tier: 1,000 calls/day, no billing required.
+// To migrate to Google Places (New) in the future, only this function + the
+// PLACES_KEY constant above need to change.
 
 async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
-  // Append dietary keywords to the text query for better API-level filtering
-  const dietaryTerms = (q.dietary ?? []).map((d) => d.toLowerCase()).join(' ')
-  const textQuery = [q.query, dietaryTerms, q.location].filter(Boolean).join(' near ')
-
-  const body: Record<string, unknown> = {
-    textQuery: textQuery || 'restaurants',
-    includedType: 'restaurant',
-    maxResultCount: 20,
-  }
+  const params = new URLSearchParams({
+    query: [q.query, ...(q.cuisines ?? []), ...(q.dietary ?? [])].filter(Boolean).join(' '),
+    categories: '13065', // Food supercategory
+    limit: '20',
+    fields: 'fsq_id,name,categories,location,geocodes,price,rating,tel,website,stats',
+  })
 
   if (q.userLat != null && q.userLng != null) {
-    body.locationRestriction = {
-      circle: {
-        center: { latitude: q.userLat, longitude: q.userLng },
-        radius: (q.radiusMiles ?? 10) * 1609.34,
-      },
-    }
+    params.set('ll', `${q.userLat},${q.userLng}`)
+    params.set('radius', String(Math.round((q.radiusMiles ?? 10) * 1609.34)))
   }
 
-  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': PLACES_KEY,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.priceLevel,places.primaryTypeDisplayName,places.nationalPhoneNumber,places.websiteUri,places.addressComponents,places.location,places.rating,places.userRatingCount,places.servesVegetarianFood,places.outdoorSeating,places.reservable,places.goodForGroups,places.liveMusic',
-    },
-    body: JSON.stringify(body),
+  const res = await fetch(`https://api.foursquare.com/v3/places/search?${params}`, {
+    headers: { Authorization: PLACES_KEY, Accept: 'application/json' },
   })
 
-  if (!res.ok) throw new Error(`Places API error: ${res.status}`)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`Foursquare API error: ${res.status}${body ? ` — ${body}` : ''}`)
+  }
 
   const data = await res.json()
-  const places = data.places ?? []
 
-  return places.map((p: Record<string, unknown>) => {
-    const display = p.displayName as { text: string } | undefined
-    const priceMap: Record<string, PriceLevel> = {
-      PRICE_LEVEL_INEXPENSIVE: 1,
-      PRICE_LEVEL_MODERATE: 2,
-      PRICE_LEVEL_EXPENSIVE: 3,
-      PRICE_LEVEL_VERY_EXPENSIVE: 4,
-    }
-    const rawPrice = p.priceLevel as string | undefined
-    const typeDisplay = p.primaryTypeDisplayName as { text: string } | undefined
-
-    // Extract neighborhood from address components
-    const components = p.addressComponents as Array<{ longText: string; types: string[] }> | undefined
-    const neighborhood = components?.find((c) => c.types.includes('neighborhood'))?.longText ?? ''
-
-    const location = p.location as { latitude: number; longitude: number } | undefined
+  const raw: PlaceResult[] = (data.results ?? []).map((p: Record<string, unknown>) => {
+    const cats  = p.categories as Array<{ name: string }> | undefined
+    const loc   = p.location as Record<string, unknown> | undefined
+    const geo   = (p.geocodes as Record<string, Record<string, number>> | undefined)?.main
+    const stats = p.stats as Record<string, number> | undefined
+    const nbArr = loc?.neighborhood as string[] | undefined
 
     return {
-      id: p.id as string,
-      name: display?.text ?? 'Unknown',
-      cuisine: typeDisplay?.text ?? 'Restaurant',
-      priceLevel: rawPrice ? (priceMap[rawPrice] ?? null) : null,
-      address: p.formattedAddress as string ?? '',
-      neighborhood,
-      phoneNumber: p.nationalPhoneNumber as string | null ?? null,
-      websiteUri: p.websiteUri as string | null ?? null,
-      lat: location?.latitude ?? null,
-      lng: location?.longitude ?? null,
-      rating: (p.rating as number | undefined) ?? null,
-      reviewCount: (p.userRatingCount as number | undefined) ?? null,
-      servesVegetarianFood: (p.servesVegetarianFood as boolean | undefined) ?? null,
-      outdoorSeating: (p.outdoorSeating as boolean | undefined) ?? null,
-      reservable: (p.reservable as boolean | undefined) ?? null,
-      goodForGroups: (p.goodForGroups as boolean | undefined) ?? null,
-      liveMusic: (p.liveMusic as boolean | undefined) ?? null,
+      id:           p.fsq_id as string,
+      name:         (p.name as string) ?? 'Unknown',
+      cuisine:      cats?.[0]?.name ?? 'Restaurant',
+      priceLevel:   (p.price as PriceLevel | undefined) ?? null,
+      address:      (loc?.formatted_address as string) ?? '',
+      neighborhood: nbArr?.[0] ?? '',
+      phoneNumber:  (p.tel as string | undefined) ?? null,
+      websiteUri:   (p.website as string | undefined) ?? null,
+      lat:          geo?.latitude ?? null,
+      lng:          geo?.longitude ?? null,
+      rating:       (p.rating as number | undefined) ?? null,
+      reviewCount:  stats?.total_ratings ?? null,
+      servesVegetarianFood: null,
+      outdoorSeating: null,
+      reservable:   null,
+      goodForGroups: null,
+      liveMusic:    null,
     }
   })
+
+  // Client-side post-filters (FSQ pre-filters by text query; these refine further)
+  let filtered = raw
+
+  if (q.cuisines && q.cuisines.length > 0) {
+    filtered = filtered.filter((r) =>
+      q.cuisines!.some((c) => r.cuisine.toLowerCase().includes(c.toLowerCase()))
+    )
+  }
+
+  if (q.prices && q.prices.length > 0) {
+    filtered = filtered.filter(
+      (r) => r.priceLevel !== null && q.prices!.includes(r.priceLevel as PriceFilter)
+    )
+  }
+
+  if (q.vibes && q.vibes.length > 0) {
+    const allowedPrices = new Set(q.vibes.flatMap((v) => VIBE_PRICE_MAP[v]))
+    filtered = filtered.filter(
+      (r) => r.priceLevel !== null && allowedPrices.has(r.priceLevel)
+    )
+  }
+
+  return filtered
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────

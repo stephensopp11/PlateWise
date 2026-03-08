@@ -132,7 +132,7 @@ export default function GroupDiningPage() {
     const results = await searchPlaces({
       query: 'restaurant',
       cuisines,
-      experiences: ['Good for Groups'],
+      experiences: [],
       userLat: geo.lat,
       userLng: geo.lng,
     })

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { searchPlaces, priceLabel, openTableUrl } from '@/lib/places'
-import type { PlaceResult, VibeFilter, CuisineFilter, PriceFilter, DietaryFilter, ExperienceFilter } from '@/lib/places'
+import type { PlaceResult, VibeFilter, CuisineFilter, PriceFilter, DietaryFilter } from '@/lib/places'
 import RestaurantMap from '@/components/RestaurantMap'
 import { useGeolocation } from '@/hooks/useGeolocation'
 import { qualityAdjustedScore } from '@/lib/scoring'
@@ -28,7 +28,6 @@ const PRICES: { label: string; value: PriceFilter }[] = [
   { label: '$$$', value: 3 },
 ]
 const DIETARY: DietaryFilter[] = ['Vegetarian', 'Vegan', 'Gluten-Free']
-const EXPERIENCES: ExperienceFilter[] = ['Outdoor Seating', 'Reservable', 'Good for Groups', 'Live Music']
 
 const SUGGESTIONS = [
   'Sushi', 'Tacos', 'Pizza', 'Burgers', 'Brunch',
@@ -155,7 +154,7 @@ export default function DiscoverPage() {
   const [activeCuisines, setActiveCuisines] = useState<Set<CuisineFilter>>(new Set())
   const [activePrices, setActivePrices] = useState<Set<PriceFilter>>(new Set())
   const [activeDietary, setActiveDietary] = useState<Set<DietaryFilter>>(new Set())
-  const [activeExperiences, setActiveExperiences] = useState<Set<ExperienceFilter>>(new Set())
+  const [activeExperiences] = useState(new Set<string>())
   const [minRating, setMinRating] = useState(0)
 
   const [searchResults, setSearchResults] = useState<PlaceResult[] | null>(null)
@@ -206,7 +205,7 @@ export default function DiscoverPage() {
       })
   }, [user])
 
-  const toggleSet = useCallback(<T>(set: Set<T>, value: T): Set<T> => {
+  const toggleSet = useCallback(<T,>(set: Set<T>, value: T): Set<T> => {
     const next = new Set(set)
     if (next.has(value)) next.delete(value)
     else next.add(value)
@@ -226,14 +225,14 @@ export default function DiscoverPage() {
         cuisines: [...activeCuisines],
         prices: [...activePrices],
         dietary: [...activeDietary],
-        experiences: [...activeExperiences],
+        experiences: [],
         userLat: geo.lat,
         userLng: geo.lng,
         radiusMiles: geo.status === 'granted' ? radiusMiles : undefined,
       })
       setSearchResults(results)
-    } catch {
-      setSearchError('Search failed. Please try again.')
+    } catch (err) {
+      setSearchError(err instanceof Error ? err.message : 'Search failed. Please try again.')
     }
     setSearching(false)
   }
@@ -261,15 +260,15 @@ export default function DiscoverPage() {
         cuisines: [...activeCuisines],
         prices: [...activePrices],
         dietary: [...activeDietary],
-        experiences: [...activeExperiences],
+        experiences: [],
         userLat: geo.lat,
         userLng: geo.lng,
         radiusMiles: geo.status === 'granted' ? radiusMiles : undefined,
       }).then((results) => {
         setSearchResults(results)
         setSearching(false)
-      }).catch(() => {
-        setSearchError('Search failed. Please try again.')
+      }).catch((err: unknown) => {
+        setSearchError(err instanceof Error ? err.message : 'Search failed. Please try again.')
         setSearching(false)
       })
     }, 0)
@@ -489,16 +488,8 @@ export default function DiscoverPage() {
               ))}
             </FilterSection>
 
-            <FilterSection label="Experience">
-              {EXPERIENCES.map((e) => (
-                <FilterChip
-                  key={e}
-                  label={e}
-                  active={activeExperiences.has(e)}
-                  onToggle={() => setActiveExperiences(toggleSet(activeExperiences, e))}
-                />
-              ))}
-            </FilterSection>
+            {/* Experience filters (Good for Groups, Outdoor Seating, etc.) are
+                reserved for future Google Places migration — not in Foursquare free tier */}
           </div>
         )}
 
