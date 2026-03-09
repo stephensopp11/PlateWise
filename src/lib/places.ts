@@ -1,10 +1,11 @@
-// ─── Places wrapper (Foursquare v3) ──────────────────────────────────────────
+// ─── Places wrapper (Google Places API New) ───────────────────────────────────
 // Set VITE_USE_MOCK_PLACES=true to use mock data (no API cost).
-// Set VITE_FOURSQUARE_API_KEY=fsq3... for real results (1,000 calls/day free).
-// To migrate to Google Places (New): replace realSearch() + the key constant.
+// Real searches go through the Supabase Edge Function (supabase/functions/places-search)
+// which holds the Google API key server-side and enforces a monthly call limit.
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK_PLACES === 'true'
-const PLACES_KEY = import.meta.env.VITE_FOURSQUARE_API_KEY ?? ''
+const USE_MOCK      = import.meta.env.VITE_USE_MOCK_PLACES === 'true'
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL ?? ''
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
 
 export type PriceLevel = 1 | 2 | 3 | 4
 
@@ -130,64 +131,36 @@ function mockSearch(q: PlacesQuery): PlaceResult[] {
   return results
 }
 
-// ── Foursquare Places API (v3) ────────────────────────────────────────────────
-// Free tier: 1,000 calls/day, no billing required.
-// To migrate to Google Places (New) in the future, only this function + the
-// PLACES_KEY constant above need to change.
+// ── Google Places API (New) via Supabase Edge Function ────────────────────────
+// The edge function holds the API key and enforces the monthly call limit.
+// To migrate to a different provider: update supabase/functions/places-search/index.ts
 
 async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
-  const params = new URLSearchParams({
-    query: [q.query, ...(q.cuisines ?? []), ...(q.dietary ?? [])].filter(Boolean).join(' '),
-    categories: '13065', // Food supercategory
-    limit: '20',
-    fields: 'fsq_id,name,categories,location,geocodes,price,rating,tel,website,stats',
-  })
+  const edgeFnUrl = `${SUPABASE_URL}/functions/v1/places-search`
 
-  if (q.userLat != null && q.userLng != null) {
-    params.set('ll', `${q.userLat},${q.userLng}`)
-    params.set('radius', String(Math.round((q.radiusMiles ?? 10) * 1609.34)))
-  }
-
-  const res = await fetch(`https://api.foursquare.com/v3/places/search?${params}`, {
-    headers: { Authorization: PLACES_KEY, Accept: 'application/json' },
+  const res = await fetch(edgeFnUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${SUPABASE_ANON}`,
+    },
+    body: JSON.stringify({
+      query: [q.query, ...(q.cuisines ?? []), ...(q.dietary ?? [])].filter(Boolean).join(' '),
+      userLat: q.userLat,
+      userLng: q.userLng,
+      radiusMiles: q.radiusMiles,
+    }),
   })
 
   if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Foursquare API error: ${res.status}${body ? ` — ${body}` : ''}`)
+    const body = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(body.error ?? `Search error: ${res.status}`)
   }
 
-  const data = await res.json()
+  const data = await res.json() as { results: PlaceResult[] }
+  const raw = data.results ?? []
 
-  const raw: PlaceResult[] = (data.results ?? []).map((p: Record<string, unknown>) => {
-    const cats  = p.categories as Array<{ name: string }> | undefined
-    const loc   = p.location as Record<string, unknown> | undefined
-    const geo   = (p.geocodes as Record<string, Record<string, number>> | undefined)?.main
-    const stats = p.stats as Record<string, number> | undefined
-    const nbArr = loc?.neighborhood as string[] | undefined
-
-    return {
-      id:           p.fsq_id as string,
-      name:         (p.name as string) ?? 'Unknown',
-      cuisine:      cats?.[0]?.name ?? 'Restaurant',
-      priceLevel:   (p.price as PriceLevel | undefined) ?? null,
-      address:      (loc?.formatted_address as string) ?? '',
-      neighborhood: nbArr?.[0] ?? '',
-      phoneNumber:  (p.tel as string | undefined) ?? null,
-      websiteUri:   (p.website as string | undefined) ?? null,
-      lat:          geo?.latitude ?? null,
-      lng:          geo?.longitude ?? null,
-      rating:       (p.rating as number | undefined) ?? null,
-      reviewCount:  stats?.total_ratings ?? null,
-      servesVegetarianFood: null,
-      outdoorSeating: null,
-      reservable:   null,
-      goodForGroups: null,
-      liveMusic:    null,
-    }
-  })
-
-  // Client-side post-filters (FSQ pre-filters by text query; these refine further)
+  // Client-side post-filters
   let filtered = raw
 
   if (q.cuisines && q.cuisines.length > 0) {
@@ -215,7 +188,7 @@ async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
 // ── Public API ────────────────────────────────────────────────────────────────
 
 export async function searchPlaces(query: PlacesQuery): Promise<PlaceResult[]> {
-  if (USE_MOCK || !PLACES_KEY) return mockSearch(query)
+  if (USE_MOCK) return mockSearch(query)
   return realSearch(query)
 }
 

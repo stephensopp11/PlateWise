@@ -118,16 +118,20 @@ Sends item list + profile summary to Claude, returns scored JSON. Same `DishScor
 2. Invited friends join via in-app invite banner (GroupDiningPage)
 3. Joined members' taste profiles are blended: `Math.min()` per axis (conservative — no one gets something that conflicts with their palate)
 4. `groupCuisineSuggestions()` scores 10 cuisines against blended profile → top 3 passed to `searchPlaces`
-5. Foursquare returns nearby restaurants matching those cuisines
+5. Google Places returns nearby restaurants matching those cuisines
 
-## Foursquare API Notes
-- Endpoint: `GET https://api.foursquare.com/v3/places/search`
-- Auth: `Authorization: <API_KEY>` header (no "Bearer" prefix)
-- Category `13065` = Food supercategory (all restaurants)
-- Rating returned on 0–10 scale (not 1–5 like Google)
-- `goodForGroups`, `outdoorSeating`, `reservable`, `liveMusic` are NOT available — those fields return null
-- Experience filter chips in DiscoverPage are hidden; filter state kept for future Google Places migration
-- Migration path: only `realSearch()` in `places.ts` + the `PLACES_KEY` constant need to change
+## Google Places API Notes
+- Architecture: browser → Supabase Edge Function (`supabase/functions/places-search/`) → Google Places API (New)
+- API key (`GOOGLE_PLACES_API_KEY`) stored as a Supabase secret — never in the client bundle
+- Endpoint inside edge function: `POST https://places.googleapis.com/v1/places:searchText`
+- Field mask: `places.id,places.displayName,places.formattedAddress,places.location,places.primaryTypeDisplayName,places.priceLevel,places.rating,places.userRatingCount,places.internationalPhoneNumber,places.websiteUri`
+- `priceLevel` returned as enum string (e.g. `PRICE_LEVEL_MODERATE`), mapped to 1–3 in the edge function
+- Rating on 1.0–5.0 scale
+- `goodForGroups`, `outdoorSeating`, `reservable`, `liveMusic` not requested — those fields return null
+- Experience filter chips in DiscoverPage are hidden; filter state kept for future use
+- Monthly call limit: 500 calls/month hardcoded in edge function (safeguard against runaway cost)
+- Call counter stored in `api_usage` Supabase table (month TEXT primary key, call_count INT)
+- Migration path: update `supabase/functions/places-search/index.ts` to change provider
 
 ## Path Aliases
 `@/` maps to `src/` (configured in `vite.config.ts` and `tsconfig.json`)
