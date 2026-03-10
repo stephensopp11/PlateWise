@@ -1,0 +1,5 @@
+[project]
+project_id = "vmffoadozupktyuqalxo"
+
+[functions.places-search]
+verify_jwt = true

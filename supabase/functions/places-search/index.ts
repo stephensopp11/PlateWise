@@ -47,19 +47,9 @@ Deno.serve(async (req) => {
   const corsHeaders = { 'Access-Control-Allow-Origin': '*' }
 
   try {
-    // ── Auth: require valid Supabase JWT ──────────────────────────────────────
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization header' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const supabaseUrl   = Deno.env.get('SUPABASE_URL')!
-    const supabaseAnon  = Deno.env.get('SUPABASE_ANON_KEY')!
-    const serviceKey    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const googleApiKey  = Deno.env.get('GOOGLE_PLACES_API_KEY')
+    const supabaseUrl  = Deno.env.get('SUPABASE_URL')!
+    const serviceKey   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const googleApiKey = Deno.env.get('GOOGLE_PLACES_API_KEY')
 
     if (!googleApiKey) {
       return new Response(JSON.stringify({ error: 'Google Places API key not configured' }), {
@@ -68,19 +58,8 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Verify JWT is valid (anon or user token)
-    const userClient = createClient(supabaseUrl, supabaseAnon, {
-      global: { headers: { Authorization: authHeader } },
-    })
-    const { error: authError } = await userClient.auth.getUser()
-    if (authError) {
-      return new Response(JSON.stringify({ error: 'Invalid token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
     // ── Monthly call limit check ──────────────────────────────────────────────
+    // Note: JWT auth is handled at the platform level via verify_jwt = true in config.toml
     const adminClient = createClient(supabaseUrl, serviceKey)
     const month = new Date().toISOString().slice(0, 7) // 'YYYY-MM'
 

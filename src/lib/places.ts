@@ -3,6 +3,8 @@
 // Real searches go through the Supabase Edge Function (supabase/functions/places-search)
 // which holds the Google API key server-side and enforces a monthly call limit.
 
+import { supabase } from './supabase'
+
 const USE_MOCK      = import.meta.env.VITE_USE_MOCK_PLACES === 'true'
 const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL ?? ''
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY ?? ''
@@ -136,13 +138,15 @@ function mockSearch(q: PlacesQuery): PlaceResult[] {
 // To migrate to a different provider: update supabase/functions/places-search/index.ts
 
 async function realSearch(q: PlacesQuery): Promise<PlaceResult[]> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token ?? SUPABASE_ANON
   const edgeFnUrl = `${SUPABASE_URL}/functions/v1/places-search`
 
   const res = await fetch(edgeFnUrl, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${SUPABASE_ANON}`,
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({
       query: [q.query, ...(q.cuisines ?? []), ...(q.dietary ?? [])].filter(Boolean).join(' '),
